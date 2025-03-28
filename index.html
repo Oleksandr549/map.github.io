@@ -2800,7 +2800,7 @@
         const svg = d3.select("#seats-svg");
         const zoom = d3.zoom()
 
-        .scaleExtent([0.75, 3])  // Ограничиваем масштабы от 0.5 до 5
+        .scaleExtent([0.75, 5])  
         .on("zoom", function () {
             svg.attr("transform", d3.event.transform);
         });
@@ -2815,7 +2815,7 @@
         });
         document.getElementById("reset").addEventListener("click", function() {
             svg.transition().duration(500)
-                .call(zoom.transform, d3.zoomIdentity);  // Сбросить все трансформации
+                .call(zoom.transform, d3.zoomIdentity);  
         });
        
         
