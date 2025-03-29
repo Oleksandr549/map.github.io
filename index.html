@@ -2936,62 +2936,234 @@ transition: fill 0.3s ease 0s;
         
         <script src="https://d3js.org/d3.v5.min.js"></script>
     <script>
-        const mainsvg = $("#seats-svg");
-
-$(document).ready(function () {
-    $("[id^='seat']").css("cursor", "pointer").on("click", function () {
-        if (!$(this).hasClass("reserved")) {
-            $(this).toggleClass("active");
-        }
-    });
-
-    $(".btn-buy").on("click", function () {
-        $(".active").each(function () {
-            $(this).removeClass("active").addClass("reserved");
-
-            // Находим родительский table, а затем area внутри него
-            const table = $(this).closest("[id^='table_']");
-            if (table.length) {
-                table.find("[id^='area_']").addClass("reserved");
-            }
-        });
-    });
-});
-
+        $(document).ready(function () {
+            $("[id^='seat'], [id^='area']").css("cursor", "pointer").hover(
+                function (event) {
+                    
+                    $(".tooltip").remove();
         
-       
-        const svg = d3.select("#seats-svg");
-        const zoom = d3.zoom()
-
-        .scaleExtent([0.75, 5])  
-        .on("zoom", function () {
-            svg.attr("transform", d3.event.transform);
-        });
-        svg.call(zoom);
-    
-        document.getElementById("zoomIn").addEventListener("click", function() {
-            svg.transition().duration(500).call(zoom.scaleBy, 1.25);
-        });
-    
-        document.getElementById("zoomOut").addEventListener("click", function() {
-            svg.transition().duration(500).call(zoom.scaleBy, 0.75);
-        });
-        document.getElementById("reset").addEventListener("click", function() {
-            svg.transition().duration(500)
-                .call(zoom.transform, d3.zoomIdentity);  
-        });
-       
-        document.querySelectorAll('[id^="area_"]').forEach(area => {
-            area.addEventListener('click', () => {
-                const table = area.closest('[id^="table_"]'); // Находим родительский table
-                if (table) {
-                    table.querySelectorAll('[id^="seat_"]').forEach(seat => {
-                        seat.classList.toggle('active'); // Добавляем или убираем класс
+                    if ($(this).is("[id^='seat'], [id^='area']")) {
+                        let seatNumber = $(this).attr("id").replace(/[^0-9]/g, "");
+                        let info = $(this).attr("data-info") || "No information";
+                        let tooltipText = `Seat/Table #${seatNumber}: ${info}`;
+        
+                        let tooltip = $("<div class='tooltip'></div>")
+                            .text(tooltipText)
+                            .appendTo("body");
+        
+                              $(this).data("tooltipElement", tooltip);
+        
+                
+                        tooltip.css({
+                            top: event.pageY + 10 + "px",
+                            left: event.pageX + 10 + "px"
+                        }).fadeIn();
+                    }
+                },
+                function () {
+                 
+                    $(".tooltip").remove();
+                }
+            ).mousemove(function (event) {
+                
+                if ($(this).data("tooltipElement")) {
+                    $(this).data("tooltipElement").css({
+                        top: event.pageY + 10 + "px",
+                        left: event.pageX + 10 + "px"
                     });
-                    area.classList.toggle('active'); // Тоже для самого area
                 }
             });
+        
+        
+            $("svg").on("mouseenter", function() {
+                $(".tooltip").remove();
+            });
+        
+            $("[id^='seat']").on("click", function () {
+                if (!$(this).hasClass("reserved")) {
+                    $(this).toggleClass("active");
+                }
+            });
+        
+            $(".btn-buy").on("click", function () {
+                $(".active").each(function () {
+                    $(this).removeClass("active").addClass("reserved");
+                    const table = $(this).closest("[id^='table_']");
+                    if (table.length) {
+                        table.find("[id^='area_']").addClass("reserved");
+                    }
+                });
+            });
+        
+            $("[id^='area']").on("click", function () {
+                const table = $(this).closest("[id^='table_']");
+                if (table.length) {
+                    table.find("[id^='seat']").toggleClass("active");
+                    $(this).toggleClass("active");
+                }
+            });
+        
+            $("<style>")
+                .prop("type", "text/css")
+                .html(`
+                    .tooltip {
+                        position: absolute;
+                        background: rgba(0, 0, 0, 0.8);
+                        color: #fff;
+                        padding: 5px 10px;
+                        border-radius: 5px;
+                        font-size: 14px;
+                        display: none;
+                        pointer-events: none;
+                        z-index: 1000;
+                    }
+                `)
+                .appendTo("head");
         });
+        
+
+        $(document).ready(function () {
+            const $svg = $("#seats-svg");
+            const $zoomInBtn = $("#zoomIn");
+            const $zoomOutBtn = $("#zoomOut");
+            const $resetBtn = $("#reset");
+        
+            let scale = 1;
+            const scaleStep = 0.2;
+            const maxScale = 3;
+            const minScale = 0.5;
+        
+            let viewBox = { x: 0, y: 0, width: 1095, height: 787 };
+            let targetScale = scale;
+            let isAnimating = false;
+            let intervalId = null;
+        
+            function updateViewBox() {
+                const newViewBox = `${viewBox.x} ${viewBox.y} ${viewBox.width / scale} ${viewBox.height / scale}`;
+                $svg.attr("viewBox", newViewBox);
+            }
+        
+            function smoothZoom() {
+                if (isAnimating) return;
+        
+                isAnimating = true;
+                intervalId = setInterval(function () {
+                    if (Math.abs(targetScale - scale) <= scaleStep) {
+                        scale = targetScale;
+                        clearInterval(intervalId);
+                        isAnimating = false;
+                    } else {
+                        scale += (targetScale - scale) * 0.1;
+                    }
+        
+                    updateViewBox();
+                }, 10);
+            }
+        
+            $zoomInBtn.on("click", function () {
+                if (scale < maxScale) {
+                    targetScale = Math.min(scale + scaleStep, maxScale);
+                    smoothZoom();
+                }
+            });
+        
+            $zoomOutBtn.on("click", function () {
+                if (scale > minScale) {
+                    targetScale = Math.max(scale - scaleStep, minScale);
+                    smoothZoom();
+                }
+            });
+        
+            $resetBtn.on("click", function () {
+                targetScale = 1;
+                smoothZoom();
+            });
+        
+            $svg.on("wheel", function (e) {
+                e.preventDefault();
+                const delta = e.originalEvent.deltaY > 0 ? -scaleStep : scaleStep;
+                const newScale = scale + delta;
+        
+                if (newScale >= minScale && newScale <= maxScale) {
+                    targetScale = newScale;
+                    smoothZoom();
+                }
+            });
+        
+            let isDragging = false;
+            let startX, startY;
+        
+            $svg.on("mousedown", function (e) {
+                isDragging = true;
+                startX = e.clientX;
+                startY = e.clientY;
+            });
+        
+            $(document).on("mousemove", function (e) {
+                if (isDragging) {
+                    const dx = (startX - e.clientX) * (viewBox.width / $svg.width());
+                    const dy = (startY - e.clientY) * (viewBox.height / $svg.height());
+        
+                    viewBox.x += dx;
+                    viewBox.y += dy;
+                    startX = e.clientX;
+                    startY = e.clientY;
+                    updateViewBox();
+                }
+            });
+        
+            $(document).on("mouseup", function () {
+                isDragging = false;
+            });
+        
+            let touchStartDistance = 0;
+            let touchStartScale = scale;
+        
+            function getTouchDistance(touches) {
+                return Math.hypot(
+                    touches[0].clientX - touches[1].clientX,
+                    touches[0].clientY - touches[1].clientY
+                );
+            }
+        
+            $svg.on("touchstart", function (e) {
+                if (e.touches.length === 2) {
+                    touchStartDistance = getTouchDistance(e.touches);
+                    touchStartScale = scale;
+                }
+            });
+        
+            $svg.on("touchmove", function (e) {
+                if (e.touches.length === 2) {
+                    e.preventDefault();
+                    const touchCurrentDistance = getTouchDistance(e.touches);
+                    const scaleChange = touchCurrentDistance / touchStartDistance;
+                    let newScale = touchStartScale * scaleChange;
+        
+                    if (newScale >= minScale && newScale <= maxScale) {
+                        targetScale = newScale;
+                        smoothZoom();
+                    }
+                } else if (e.touches.length === 1 && isDragging) {
+                    const dx = (startX - e.touches[0].clientX) * (viewBox.width / $svg.width());
+                    const dy = (startY - e.touches[0].clientY) * (viewBox.height / $svg.height());
+        
+                    viewBox.x += dx;
+                    viewBox.y += dy;
+                    startX = e.touches[0].clientX;
+                    startY = e.touches[0].clientY;
+                    updateViewBox();
+                }
+            });
+        
+            $svg.on("touchend", function () {
+                isDragging = false;
+            });
+        });
+        
+        
+        
+        
     </script>
     
 </body>
