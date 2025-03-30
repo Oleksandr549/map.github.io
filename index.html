@@ -2918,7 +2918,7 @@ transition: fill 0.3s ease 0s;
         
     </div>
 </section>
-        <button class="btn-buy">Buy1</button>
+        <button class="btn-buy">Buy</button>
      
         <div id="controls">
             <button id="zoomIn">
@@ -3034,58 +3034,67 @@ transition: fill 0.3s ease 0s;
             const minScale = 0.5;
         
             let viewBox = { x: 0, y: 0, width: 1095, height: 787 };
-            let targetScale = scale;
-            let isAnimating = false;
-            let intervalId = null;
         
             function updateViewBox() {
-                const newViewBox = `${viewBox.x} ${viewBox.y} ${viewBox.width / scale} ${viewBox.height / scale}`;
-                $svg.attr("viewBox", newViewBox);
+                $svg.attr("viewBox", `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`);
             }
         
-            function smoothZoom(focusX, focusY) {
-                if (isAnimating) return;
+            function zoomAtPoint(mouseX, mouseY, newScale) {
+                if (newScale < minScale || newScale > maxScale) return;
         
-                isAnimating = true;
-                intervalId = setInterval(function () {
-                    if (Math.abs(targetScale - scale) <= scaleStep) {
-                        scale = targetScale;
-                        clearInterval(intervalId);
-                        isAnimating = false;
-                    } else {
-                        scale += (targetScale - scale) * 0.1;
-                    }
+                let rect = $svg[0].getBoundingClientRect();
+                
+                // Переводим координаты курсора в координаты SVG
+                let svgX = (mouseX - rect.left) / rect.width * viewBox.width + viewBox.x;
+                let svgY = (mouseY - rect.top) / rect.height * viewBox.height + viewBox.y;
         
-                    if (focusX !== undefined && focusY !== undefined) {
-                        // Смещаем вьюбокс так, чтобы центр увеличения оставался под пальцами
-                        let scaleFactor = targetScale / scale;
-                        viewBox.x = focusX - (focusX - viewBox.x) * scaleFactor;
-                        viewBox.y = focusY - (focusY - viewBox.y) * scaleFactor;
-                    }
+                let scaleFactor = scale / newScale;
         
+                // Корректируем viewBox так, чтобы точка фокусировки осталась неизменной
+                viewBox.x = svgX - (svgX - viewBox.x) * scaleFactor;
+                viewBox.y = svgY - (svgY - viewBox.y) * scaleFactor;
+                viewBox.width *= scaleFactor;
+                viewBox.height *= scaleFactor;
+        
+                scale = newScale;
+                updateViewBox();
+            }
+        
+            // Зум колесом мыши (учитывает положение курсора)
+            $svg.on("wheel", function (e) {
+                e.preventDefault();
+                const delta = e.originalEvent.deltaY > 0 ? -scaleStep : scaleStep;
+                zoomAtPoint(e.clientX, e.clientY, scale + delta);
+            });
+        
+            // Перетаскивание мышью
+            let isDragging = false;
+            let startX, startY;
+        
+            $svg.on("mousedown", function (e) {
+                isDragging = true;
+                startX = e.clientX;
+                startY = e.clientY;
+            });
+        
+            $(document).on("mousemove", function (e) {
+                if (isDragging) {
+                    let dx = (startX - e.clientX) * (viewBox.width / $svg.width());
+                    let dy = (startY - e.clientY) * (viewBox.height / $svg.height());
+        
+                    viewBox.x += dx;
+                    viewBox.y += dy;
+                    startX = e.clientX;
+                    startY = e.clientY;
                     updateViewBox();
-                }, 10);
-            }
-        
-            $zoomInBtn.on("click", function () {
-                if (scale < maxScale) {
-                    targetScale = Math.min(scale + scaleStep, maxScale);
-                    smoothZoom();
                 }
             });
         
-            $zoomOutBtn.on("click", function () {
-                if (scale > minScale) {
-                    targetScale = Math.max(scale - scaleStep, minScale);
-                    smoothZoom();
-                }
+            $(document).on("mouseup", function () {
+                isDragging = false;
             });
         
-            $resetBtn.on("click", function () {
-                targetScale = 1;
-                smoothZoom();
-            });
-        
+            // --- Мобильные устройства ---
             let touchStartDistance = 0;
             let touchStartScale = scale;
             let touchCenter = { x: 0, y: 0 };
@@ -3109,6 +3118,10 @@ transition: fill 0.3s ease 0s;
                     touchStartDistance = getTouchDistance(e.touches);
                     touchStartScale = scale;
                     touchCenter = getTouchCenter(e.touches);
+                } else if (e.touches.length === 1) {
+                    isDragging = true;
+                    startX = e.touches[0].clientX;
+                    startY = e.touches[0].clientY;
                 }
             });
         
@@ -3120,15 +3133,38 @@ transition: fill 0.3s ease 0s;
                     let newScale = touchStartScale * scaleChange;
         
                     if (newScale >= minScale && newScale <= maxScale) {
-                        targetScale = newScale;
                         let newTouchCenter = getTouchCenter(e.touches);
-                        smoothZoom(newTouchCenter.x, newTouchCenter.y);
+                        zoomAtPoint(newTouchCenter.x, newTouchCenter.y, newScale);
                     }
+                } else if (e.touches.length === 1 && isDragging) {
+                    const dx = (startX - e.touches[0].clientX) * (viewBox.width / $svg.width());
+                    const dy = (startY - e.touches[0].clientY) * (viewBox.height / $svg.height());
+        
+                    viewBox.x += dx;
+                    viewBox.y += dy;
+                    startX = e.touches[0].clientX;
+                    startY = e.touches[0].clientY;
+                    updateViewBox();
                 }
             });
         
             $svg.on("touchend", function () {
-                isAnimating = false;
+                isDragging = false;
+            });
+        
+            // Кнопки зума
+            $zoomInBtn.on("click", function () {
+                zoomAtPoint(viewBox.x + viewBox.width / 2, viewBox.y + viewBox.height / 2, scale + scaleStep);
+            });
+        
+            $zoomOutBtn.on("click", function () {
+                zoomAtPoint(viewBox.x + viewBox.width / 2, viewBox.y + viewBox.height / 2, scale - scaleStep);
+            });
+        
+            $resetBtn.on("click", function () {
+                viewBox = { x: 0, y: 0, width: 1095, height: 787 };
+                scale = 1;
+                updateViewBox();
             });
         });
         
