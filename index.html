@@ -2918,7 +2918,7 @@ transition: fill 0.3s ease 0s;
         
     </div>
 </section>
-        <button class="btn-buy">Buy</button>
+        <button class="btn-buy">Buy1</button>
      
         <div id="controls">
             <button id="zoomIn">
@@ -3043,7 +3043,7 @@ transition: fill 0.3s ease 0s;
                 $svg.attr("viewBox", newViewBox);
             }
         
-            function smoothZoom() {
+            function smoothZoom(focusX, focusY) {
                 if (isAnimating) return;
         
                 isAnimating = true;
@@ -3054,6 +3054,13 @@ transition: fill 0.3s ease 0s;
                         isAnimating = false;
                     } else {
                         scale += (targetScale - scale) * 0.1;
+                    }
+        
+                    if (focusX !== undefined && focusY !== undefined) {
+                        // Смещаем вьюбокс так, чтобы центр увеличения оставался под пальцами
+                        let scaleFactor = targetScale / scale;
+                        viewBox.x = focusX - (focusX - viewBox.x) * scaleFactor;
+                        viewBox.y = focusY - (focusY - viewBox.y) * scaleFactor;
                     }
         
                     updateViewBox();
@@ -3079,45 +3086,9 @@ transition: fill 0.3s ease 0s;
                 smoothZoom();
             });
         
-            $svg.on("wheel", function (e) {
-                e.preventDefault();
-                const delta = e.originalEvent.deltaY > 0 ? -scaleStep : scaleStep;
-                const newScale = scale + delta;
-        
-                if (newScale >= minScale && newScale <= maxScale) {
-                    targetScale = newScale;
-                    smoothZoom();
-                }
-            });
-        
-            let isDragging = false;
-            let startX, startY;
-        
-            $svg.on("mousedown", function (e) {
-                isDragging = true;
-                startX = e.clientX;
-                startY = e.clientY;
-            });
-        
-            $(document).on("mousemove", function (e) {
-                if (isDragging) {
-                    const dx = (startX - e.clientX) * (viewBox.width / $svg.width());
-                    const dy = (startY - e.clientY) * (viewBox.height / $svg.height());
-        
-                    viewBox.x += dx;
-                    viewBox.y += dy;
-                    startX = e.clientX;
-                    startY = e.clientY;
-                    updateViewBox();
-                }
-            });
-        
-            $(document).on("mouseup", function () {
-                isDragging = false;
-            });
-        
             let touchStartDistance = 0;
             let touchStartScale = scale;
+            let touchCenter = { x: 0, y: 0 };
         
             function getTouchDistance(touches) {
                 return Math.hypot(
@@ -3126,10 +3097,18 @@ transition: fill 0.3s ease 0s;
                 );
             }
         
+            function getTouchCenter(touches) {
+                return {
+                    x: (touches[0].clientX + touches[1].clientX) / 2,
+                    y: (touches[0].clientY + touches[1].clientY) / 2
+                };
+            }
+        
             $svg.on("touchstart", function (e) {
                 if (e.touches.length === 2) {
                     touchStartDistance = getTouchDistance(e.touches);
                     touchStartScale = scale;
+                    touchCenter = getTouchCenter(e.touches);
                 }
             });
         
@@ -3142,25 +3121,16 @@ transition: fill 0.3s ease 0s;
         
                     if (newScale >= minScale && newScale <= maxScale) {
                         targetScale = newScale;
-                        smoothZoom();
+                        let newTouchCenter = getTouchCenter(e.touches);
+                        smoothZoom(newTouchCenter.x, newTouchCenter.y);
                     }
-                } else if (e.touches.length === 1 && isDragging) {
-                    const dx = (startX - e.touches[0].clientX) * (viewBox.width / $svg.width());
-                    const dy = (startY - e.touches[0].clientY) * (viewBox.height / $svg.height());
-        
-                    viewBox.x += dx;
-                    viewBox.y += dy;
-                    startX = e.touches[0].clientX;
-                    startY = e.touches[0].clientY;
-                    updateViewBox();
                 }
             });
         
             $svg.on("touchend", function () {
-                isDragging = false;
+                isAnimating = false;
             });
         });
-        
         
         
         
